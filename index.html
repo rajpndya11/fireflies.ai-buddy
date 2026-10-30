@@ -1,0 +1,618 @@
+<title>Commitment Loop Prototype</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Concept prototype styled after the meeting tool's dark app: neutral greys, one violet accent, pink only in the concept mark. */
+:root{
+  --bg:#161616; --rail:#1b1b1b; --panel:#212121; --panel2:#2a2a2a; --line:#2e2e2e; --text:#ececec; --muted:#a3a3a3; --faint:#717171;
+  --accent:#7357ff; --accent-h:#8169ff; --accent-soft:rgba(115,87,255,.16); --pink:#f0388c;
+  --good:#4ade80; --good-soft:rgba(74,222,128,.12); --warn:#f2b54a; --warn-soft:rgba(242,181,74,.14); --bad:#f2716b; --bad-soft:rgba(242,113,107,.14);
+  --slack:#1d1c1f; --slack-line:#3a393d;
+  --ui:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif; --mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box} html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--text);font-family:var(--ui);font-size:14px;line-height:1.5}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,select:focus-visible,textarea:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.shell{display:grid;grid-template-columns:248px minmax(0,1fr);min-height:100%}
+aside.rail{background:var(--rail);border-right:1px solid var(--line);display:flex;flex-direction:column;padding:14px 10px;position:sticky;top:0;height:100vh;overflow:auto}
+.acct{display:flex;align-items:center;gap:10px;padding:4px 8px 14px}
+.mark{width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,var(--pink),var(--accent));display:grid;place-items:center;flex:none}
+.mark svg{width:16px;height:16px}
+.acct .nm{font-weight:600;font-size:14px;line-height:1.2} .acct .sm{font-size:11px;color:var(--faint)}
+.grp{display:flex;flex-direction:column;gap:1px;padding:6px 0;border-top:1px solid var(--line)} .grp:first-of-type{border-top:0}
+.glabel{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);padding:6px 10px 4px}
+.nav{display:flex;align-items:center;gap:11px;border:0;background:transparent;text-align:left;padding:8px 10px;border-radius:8px;color:#cfcfcf;font-size:14px;width:100%}
+.nav svg{width:17px;height:17px;flex:none;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;opacity:.9}
+.nav:hover{background:var(--panel)} .nav.on{background:var(--panel2);color:#fff;font-weight:600}
+.nav .new{margin-left:auto;font-size:10px;font-weight:600;color:#c9bcff;background:var(--accent-soft);border-radius:5px;padding:1px 6px}
+.nav.dim{color:var(--faint)}
+.upg{display:flex;align-items:center;gap:11px;padding:8px 10px;color:#cfcfcf} .upg svg{width:17px;height:17px;flex:none;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linejoin:round} .upg span{margin-left:auto;font-size:11px;font-weight:600;color:var(--good);background:rgba(74,222,128,.12);border-radius:5px;padding:1px 6px}
+.disclaim{margin-top:auto;font-size:11px;color:var(--faint);padding:10px 8px 2px;line-height:1.45;border-top:1px solid var(--line)}
+.top{position:sticky;top:0;z-index:10;display:flex;align-items:center;gap:14px;padding:10px 24px;background:rgba(22,22,22,.92);backdrop-filter:blur(6px);border-bottom:1px solid var(--line)}
+.top h1.pt{font-size:15px;font-weight:500;margin:0;white-space:nowrap}
+.search{flex:0 1 360px;display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:8px;padding:6px 10px;color:var(--faint);font-size:13px;margin-left:auto}
+.search kbd{margin-left:auto;font:inherit;font-size:11px;color:var(--faint)}
+.pillg{font-size:12px;color:#d6d6d6;display:flex;align-items:center;gap:6px;white-space:nowrap} .pillg b{background:#1f4d33;color:var(--good);border-radius:5px;padding:0 6px;font-size:11px}
+.cap{background:var(--accent);border:0;border-radius:8px;padding:7px 14px;color:#fff;font-weight:600;font-size:13px;display:flex;align-items:center;gap:6px;white-space:nowrap}
+.demo{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 24px;background:#1c1830;border-bottom:1px solid #2e2650;font-size:13px}
+.demo .tag{font-family:var(--mono);font-size:11px;color:#c9bcff;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap}
+.demo .dots{display:flex;gap:5px} .demo .dots button{width:22px;height:22px;border-radius:50%;border:1px solid #3d3470;background:transparent;font-size:11px;color:#bdb3ef;padding:0}
+.demo .dots button.on{background:var(--accent);border-color:var(--accent);color:#fff} .demo .dots button.done{background:#2e2650;color:#fff}
+.demo .hint{flex:1 1 320px;min-width:0;color:#d9d3ff}
+.demo .nb{border:1px solid #3d3470;background:transparent;border-radius:7px;padding:4px 10px;font-size:12px;color:#e6e1ff}
+.demo .nb.pri{background:var(--accent);border-color:var(--accent);color:#fff}
+main{padding:28px 24px 48px;min-width:0}
+.view{max-width:1080px;margin:0 auto}
+h1{font-size:24px;margin:0 0 4px;font-weight:650;text-wrap:balance} h2{font-size:16px;margin:0 0 10px;font-weight:600} h3{font-size:14px;margin:0 0 8px;font-weight:600}
+.sub{color:var(--muted);margin:0 0 22px}
+.grid2{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:20px}
+.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;min-width:0}
+.hero{border-radius:18px;padding:28px 32px;background:linear-gradient(135deg,#3a2210 0%,#2a1a12 55%,#1f1a2e 100%);border:1px solid #4a3020;display:flex;gap:24px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:24px}
+.hero h1{font-size:24px} .hero p{color:#d9cfc6;margin:4px 0 0;max-width:560px}
+.qs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:24px}
+.qs button{display:flex;align-items:center;gap:10px;border-radius:12px;padding:16px 18px;font-weight:600;border:1px solid var(--line);text-align:left}
+.qs .q1{background:#2b1520;border-color:#4a2234} .qs .q2{background:#132a20;border-color:#1e4532} .qs .q3{background:#1b1830;border-color:#2e2650}
+.qs button span{margin-left:auto;color:var(--muted)}
+.pill{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:2px 9px;font-size:12px;font-weight:500;white-space:nowrap}
+.p-wait{background:var(--warn-soft);color:var(--warn)} .p-own{background:var(--accent-soft);color:#c9bcff}
+.p-done{background:var(--good-soft);color:var(--good)} .p-drop{background:#2c2c2c;color:var(--muted)} .p-bad{background:var(--bad-soft);color:var(--bad)}
+.item{display:flex;gap:12px;align-items:flex-start;padding:12px 0;border-top:1px solid var(--line)}
+.item:first-of-type{border-top:0}
+.item .t{flex:1;min-width:0} .item .meta{color:var(--muted);font-size:12px}
+.meta{color:var(--muted);font-size:12px}
+.btn{border:1px solid var(--line);background:var(--panel2);border-radius:8px;padding:6px 12px;font-size:13px}
+.btn:hover{border-color:#4a4a4a}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:#fff} .btn.pri:hover{background:var(--accent-h)}
+.btn.good{background:var(--good-soft);border-color:transparent;color:var(--good)}
+.btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.quote{border-left:2px solid var(--line);padding-left:10px;color:var(--muted);font-size:13px;margin:6px 0}
+.ts{font-family:var(--mono);font-size:11px;color:#a593ff}
+.slack{background:var(--slack);border:1px solid var(--slack-line);border-radius:12px;overflow:hidden;max-width:680px}
+.slack-top{display:flex;align-items:center;gap:8px;padding:10px 16px;border-bottom:1px solid var(--slack-line);font-weight:700}
+.slack-top span{color:var(--muted);font-weight:400;font-size:12px}
+.msg{display:flex;gap:10px;padding:14px 16px}
+.bot{width:36px;height:36px;border-radius:8px;background:linear-gradient(135deg,var(--pink),var(--accent));flex:none}
+.msg .body{flex:1;min-width:0}
+.app-badge{font-size:10px;background:#3a393d;color:var(--muted);border-radius:3px;padding:0 4px;margin-left:6px}
+.block{border:1px solid var(--slack-line);border-radius:10px;padding:12px;margin-top:10px}
+select{background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:5px 8px;font:inherit;font-size:13px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.chip{border:1px solid var(--line);background:transparent;border-radius:999px;padding:3px 10px;font-size:12px;color:var(--muted)}
+.note{font-size:12px;color:var(--faint);margin-top:10px}
+.why{background:var(--accent-soft);border:1px solid rgba(115,87,255,.35);border-radius:10px;padding:10px 12px;font-size:13px;color:#ddd5ff;margin-bottom:16px}
+.tabs{display:inline-flex;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:3px;margin-bottom:16px}
+.tabs button{border:0;background:transparent;padding:6px 14px;border-radius:7px;color:var(--muted)}
+.tabs button.on{background:#3a3a3a;color:#fff}
+.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:16px}
+.kpi .n{font-size:26px;font-weight:700;font-variant-numeric:tabular-nums}
+.kpi .l{color:var(--muted);font-size:12px} .kpi .d{font-size:12px;color:var(--good)}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--muted);font-weight:500;font-size:12px}
+.tw{overflow-x:auto}
+textarea{width:100%;min-height:200px;background:#111;color:var(--text);border:1px solid var(--line);border-radius:10px;padding:12px;font-family:var(--mono);font-size:12.5px;line-height:1.6;resize:vertical}
+.bar{height:6px;border-radius:3px;background:var(--panel2);width:80px;overflow:hidden;display:inline-block;vertical-align:middle;margin-right:6px}
+.bar i{display:block;height:100%;background:var(--accent)}
+.mono{font-family:var(--mono);font-size:12px}
+.toast{position:fixed;right:20px;bottom:20px;background:#2a2a2a;border:1px solid var(--line);border-radius:10px;padding:10px 14px;font-size:13px;box-shadow:0 8px 30px rgba(0,0,0,.45);z-index:60}
+.empty{color:var(--faint);font-size:13px;padding:10px 0}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:6px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.feat{display:flex;flex-direction:column;gap:8px} .feat .ic{width:36px;height:36px;border-radius:9px;display:grid;place-items:center;font-weight:700;color:#fff}
+.steps-list{counter-reset:s;list-style:none;margin:0;padding:0}
+.steps-list li{counter-increment:s;display:flex;gap:14px;align-items:flex-start;padding:14px 0;border-top:1px solid var(--line)}
+.steps-list li:first-child{border-top:0}
+.steps-list li::before{content:counter(s);width:26px;height:26px;border-radius:50%;background:var(--accent-soft);color:#c9bcff;display:grid;place-items:center;font-size:12px;font-weight:700;flex:none}
+.steps-list .t{flex:1;min-width:0}
+.ph{text-align:center;padding:60px 20px;color:var(--muted)} .ph h2{color:var(--text)}
+.prio{display:inline-flex;align-items:center;gap:4px;border-radius:6px;padding:1px 7px;font-size:11px;font-weight:600;letter-spacing:.02em;border:1px solid transparent;white-space:nowrap;background:transparent}
+.prio.high{color:#ff8a8a;border-color:rgba(255,138,138,.45)} .prio.medium{color:var(--warn);border-color:rgba(227,166,59,.45)} .prio.low{color:var(--muted);border-color:var(--line)}
+button.prio:hover{background:var(--panel2)}
+.prio-wrap{position:relative;display:inline-flex;gap:4px;align-items:center}
+.prio-cycle{border:1px solid var(--line);background:transparent;border-radius:6px;padding:0 6px;font-size:11px;color:var(--muted);line-height:18px}
+.prio-menu{position:absolute;top:calc(100% + 4px);right:0;z-index:20;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:4px;min-width:150px;box-shadow:0 8px 24px rgba(0,0,0,.45)}
+.prio-menu button{display:flex;width:100%;align-items:center;gap:8px;border:0;background:transparent;border-radius:6px;padding:6px 8px;font-size:13px;text-align:left}
+.prio-menu button:hover,.prio-menu button[aria-checked="true"]{background:var(--accent-soft)}
+.agent{border:1px solid rgba(123,92,255,.45);background:var(--accent-soft);border-radius:8px;padding:10px 12px;margin-top:8px;font-size:13px}
+.agent .lbl{font-family:var(--mono);font-size:11px;color:#b5a3ff;letter-spacing:.04em;text-transform:uppercase;margin-bottom:4px}
+.dot{width:8px;height:8px;border-radius:50%;flex:none} .dot.high{background:#ff8a8a} .dot.medium{background:var(--warn)} .dot.low{background:var(--faint)}
+.hdr{display:flex;align-items:flex-start;gap:10px;justify-content:space-between}
+.phone{width:300px;max-width:100%;background:#0b0b0d;border:1px solid var(--line);border-radius:28px;padding:18px 12px 22px}
+.phone .clock{text-align:center;font-size:32px;font-weight:600;margin:6px 0 2px} .phone .date{text-align:center;color:var(--muted);font-size:12px;margin-bottom:14px}
+.push{background:rgba(255,255,255,.08);border-radius:14px;padding:10px 12px;margin-top:8px;font-size:12.5px}
+.push .papp{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:11px;margin-bottom:3px} .push .papp i{width:14px;height:14px;border-radius:4px;background:linear-gradient(135deg,#ff4fa3,#7b5cff);display:inline-block}
+.webn{position:fixed;top:16px;right:max(16px,env(safe-area-inset-right,0px));width:320px;max-width:calc(100% - 32px);background:#f4f4f6;color:#1a1a1e;border-radius:10px;padding:12px 14px;box-shadow:0 10px 30px rgba(0,0,0,.5);z-index:50;font-size:13px}
+.webn .src{font-size:11px;color:#6b6b78;margin-bottom:2px}
+.toggle{display:inline-flex;align-items:center;gap:8px}
+.sw{width:34px;height:20px;border-radius:10px;background:var(--line);position:relative;border:0;padding:0;flex:none} .sw::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:left .15s} .sw[aria-checked="true"]{background:var(--accent)} .sw[aria-checked="true"]::after{left:16px}
+.sw:disabled{opacity:.4;cursor:not-allowed}
+@media (max-width:900px){
+  .shell{grid-template-columns:1fr} aside.rail{position:static;height:auto;flex-direction:row;flex-wrap:wrap;gap:4px}
+  .grp{flex-direction:row;flex-wrap:wrap;border-top:0} .glabel,.disclaim,.acct .sm,.upg{display:none}
+  .nav{width:auto} .search,.pillg{display:none}
+  .grid2,.grid3,.qs{grid-template-columns:1fr} .kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="shell">
+<aside class="rail" aria-label="Product navigation">
+  <div class="acct"><div class="mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"><path d="M7 12a5 5 0 1 0 5-5"/><path d="M12 3v4h4"/></svg></div>
+   <div><div class="nm">Raj ▾</div><div class="sm">Commitment Loop · concept</div></div></div>
+  <div class="grp">
+   <button class="nav" data-go="home"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/></svg>Home</button><button class="nav" data-go="guide"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 19V5"/><path d="M9 7h6"/></svg>User guide</button><button class="nav dim" data-go="askfred"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="6"/><path d="M9 13h.01M15 13h.01"/><path d="M12 4v3"/></svg>AskFred</button>
+  </div>
+  <div class="grp">
+   <button class="nav" data-go="recap"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="M16 10l5-3v10l-5-3"/></svg>Meetings</button><button class="nav" data-go="tasks"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h10M4 12h10M4 18h7"/><path d="M16 17l2 2 4-4"/></svg>Tasks<span class=new>NEW</span></button><button class="nav" data-go="lab"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2 6 6 2-6 2-2 6-2-6-6-2 6-2z"/></svg>AI Skills<span class=new>NEW</span></button>
+  </div>
+  <div class="grp">
+   <button class="nav" data-go="analytics"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V12M12 20V5M19 20v-8"/></svg>Analytics<span class=new>NEW</span></button><button class="nav dim" data-go="voice"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="7" width="14" height="11" rx="3"/><path d="M9 12h.01M15 12h.01M12 3v4"/></svg>Voice Agents</button>
+  </div>
+  <div class="grp"><div class="glabel">New in this concept</div>
+   <button class="nav" data-go="slack"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg>Claim Card<span class=new>NEW</span></button><button class="nav" data-go="loops"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 0 1 14-5.3L20 9"/><path d="M20 4v5h-5"/><path d="M20 12a8 8 0 0 1-14 5.3L4 15"/><path d="M4 20v-5h5"/></svg>Open Loops<span class=new>NEW</span></button><button class="nav" data-go="brief"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h10v18H7z"/><path d="M10 8h4M10 12h4M10 16h2"/></svg>Meeting brief<span class=new>NEW</span></button><button class="nav" data-go="remind"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg>Reminders<span class=new>NEW</span></button>
+  </div>
+  <div class="grp"><div class="upg"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></svg>Upgrade<span>40% OFF</span></div>
+   <button class="nav dim" data-go="integrations"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/></svg>Integrations</button><button class="nav dim" data-go="settings"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg>Settings</button>
+  </div>
+  <div class="disclaim">Student capstone concept for Fireflies.ai. Not an official Fireflies product; all people and data are invented.</div>
+</aside>
+<div>
+  <header class="top"><h1 class="pt" id="ptitle">Home</h1>
+    <div class="search" aria-hidden="true"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>Search by title or keyword<kbd>Ctrl + K</kbd></div>
+    <div class="pillg"><b>3</b>Free meetings</div>
+    <button class="cap" data-go="recap">● Capture</button>
+  </header>
+  <div class="demo" role="region" aria-label="Guided demo">
+    <span class="tag">Guided demo</span>
+    <div class="dots" id="steps"></div>
+    <span class="hint" id="hint"></span>
+    <button class="nb" id="prev">Back</button><button class="nb pri" id="next">Next step</button>
+    <button class="nb" id="reset">Reset</button>
+  </div>
+  <main id="main"></main>
+</div>
+</div>
+<div class="toast" id="toast" hidden></div>
+<div class="webn" id="webn" hidden role="status"></div>
+
+<script>
+const SCREENS=[
+ ["recap","Meeting recap","Tuesday's Product Sync just ended. Fireflies extracted 5 commitments, but nobody owns them yet."],
+ ["slack","Claim Card","Only Raj gets this card, in Slack. One tap per item: Yes, mine (with a date and private priority), Not mine, or Not a commitment."],
+ ["tasks","Tasks","Claimed items live in the existing Tasks tab and sync to Asana. 'Owed to me' shows what others promised Raj."],
+ ["loops","Open Loops","A week later, 30 min before the next sync. The follow-up agent already closed what Asana proves; Raj settles the rest with one tap."],
+ ["brief","Meeting brief","The shared brief shows what closed since last time, so the meeting skips the repeats."],
+ ["analytics","Analytics","Managers see team-level follow-through only, never a per-person list."],
+ ["remind","Reminders","Priority decides how Raj is reminded, within a hard cap of 2 alerts a week. No AI phone calls."],
+ ["lab","AI Skill: Router","The routing logic behind the cards. Edit the transcript and run it."]
+];
+const TITLES={home:"Home",guide:"User guide",askfred:"AskFred",voice:"Voice Agents",integrations:"Integrations",settings:"Settings"};
+const PEOPLE=["Priya","Mansi","Arjun","Neha"];
+const SEED=()=>[
+ {id:"c1",priority:"high",text:"Send the revised onboarding deck to Priya",owner:"Raj",to:"Priya",type:"self",conf:.92,due:"Fri, Nov 6",ts:"12:41",quote:"I'll send the revised onboarding deck to Priya by Friday.",status:"pending"},
+ {id:"c2",priority:"medium",text:"Share the Q4 hiring plan draft with team leads",owner:"Raj",to:"Mansi",type:"self",conf:.86,due:"Wed, Nov 4",ts:"23:05",quote:"I can share the hiring plan draft with the leads on Wednesday.",status:"pending"},
+ {id:"c3",priority:"high",text:"Look into the Safari login bug",owner:"Raj",to:"Priya",type:"request",conf:.74,due:"Mon, Nov 2",ts:"31:52",quote:"Priya: Raj, can you look into the Safari login bug before Monday?",status:"pending"},
+ {id:"c6",priority:"low",text:"Maybe revisit the pricing page copy",owner:"Raj",to:"Mansi",type:"self",conf:.58,due:"—",ts:"38:20",quote:"I might maybe look at the pricing copy at some point.",status:"pending"},
+ {id:"c4",priority:"low",text:"Update the pricing FAQ",owner:null,to:"Mansi",type:"unowned",conf:.45,due:"—",ts:"35:10",quote:"Someone should update the pricing FAQ.",status:"unowned"},
+ {id:"c5",priority:"medium",text:"Draft the API rate-limit proposal",owner:"Arjun",to:"Raj",type:"self",conf:.9,due:"Thu, Nov 5",ts:"18:30",quote:"Arjun: I'll draft the rate-limit proposal for Raj by Thursday.",status:"claimed"}
+];
+/* Evidence the follow-up agent can see in V1: the owner's own tracker, and what was said in later recorded meetings. It never reads Slack or email in V1. */
+const EVIDENCE={
+ c1:{kind:"tracker",text:"You moved it to Done in Asana · Mon, Nov 2, 4:12 PM"},
+ c2:{kind:"speech",text:"Leads sync · Mon, Nov 2: “I've shared the hiring plan draft with the leads.”",ts:"14:02"}
+};
+const INIT=()=>({agentRan:false,screen:"home",items:SEED(),dropReason:{},handTo:{},tasksTab:"mine",prioMenu:null,notify:{web:false,push:true},sent:[]});
+let S=INIT();
+const PRIOS=["high","medium","low"], PLABEL={high:"High",medium:"Medium",low:"Low"};
+const isOpen=i=>["pending","claimed","still"].includes(i.status);
+const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const get=id=>S.items.find(i=>i.id===id);
+function toast(t){const el=$("#toast");el.textContent=t;el.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>el.hidden=true,2200)}
+const PILL={pending:["p-wait","Awaiting owner"],claimed:["p-own","Owned"],still:["p-own","Still on it"],done:["p-done","Done"],handed:["p-done","Handed off"],dropped:["p-drop","Dropped"],rejected:["p-drop","Not a commitment"],notmine:["p-bad","Not mine"],unowned:["p-wait","Unowned · host"],declined:["p-drop","Declined"]};
+const pill=st=>`<span class="pill ${PILL[st][0]}">${PILL[st][1]}</span>`;
+const resolved=st=>["done","handed","dropped"].includes(st);
+/* Priority badge: private to the owner. Open items get a dropdown + quick toggle; closed items show a static badge. */
+function prio(i){
+  const p=i.priority||"medium";
+  if(!isOpen(i)) return `<span class="prio ${p}" title="Priority (private to you)">${PLABEL[p]}</span>`;
+  const open=S.prioMenu===i.id;
+  return `<span class="prio-wrap">
+    <button class="prio ${p}" data-act="prio-menu" data-id="${i.id}" aria-haspopup="menu" aria-expanded="${open}" aria-label="Priority: ${PLABEL[p]}. Change priority">${PLABEL[p]} ▾</button>
+    <button class="prio-cycle" data-act="prio-cycle" data-id="${i.id}" title="Quick toggle priority" aria-label="Quick toggle priority">⇅</button>
+    ${open?`<div class="prio-menu" role="menu" aria-label="Set priority">${PRIOS.map(x=>`<button role="menuitemradio" aria-checked="${x===p}" data-act="prio-set" data-prio="${x}" data-id="${i.id}"><span class="dot ${x}"></span>${PLABEL[x]}${x===p?' <span class="meta" style="margin-left:auto">✓</span>':""}</button>`).join("")}<div class="meta" style="padding:6px 8px 2px">Only you see this. It sets how you're reminded.</div></div>`:""}
+  </span>`;
+}
+
+/* Reducer: every state change goes through here. */
+function reducer(st,a){
+  const i=a.id?st.items.find(x=>x.id===a.id):null;
+  switch(a.type){
+    case "claim": i.due=a.due||i.due; if(a.priority)i.priority=a.priority; i.status="claimed"; break;
+    case "notmine": i.status="notmine"; break;
+    case "reject": i.status="rejected"; break;
+    case "accept": i.status="claimed"; i.type="self"; break;
+    case "decline": i.status="declined"; break;
+    case "done": i.status="done"; break;
+    case "still": i.status="still"; break;
+    case "hand": st.handTo[i.id]=a.to; i.status="handed"; break;
+    case "drop": st.dropReason[i.id]=a.reason; i.status="dropped"; break;
+    case "prio-menu": st.prioMenu=st.prioMenu===a.id?null:a.id; break;
+    case "prio-close": st.prioMenu=null; break;
+    case "prio-set": if(i&&isOpen(i)){i.priority=a.priority} st.prioMenu=null; break;
+    case "prio-cycle": if(i&&isOpen(i)){i.priority=PRIOS[(PRIOS.indexOf(i.priority||"medium")+1)%3]} st.prioMenu=null; break;
+    case "notify-toggle": st.notify[a.channel]=a.value; break;
+    case "sent": st.sent.push(a.key); break;
+    case "agent-run":
+      if(!st.agentRan){ st.agentRan=true;
+        st.items.forEach(x=>{const ev=EVIDENCE[x.id]; if(!ev||x.owner!=="Raj"||!["claimed","still"].includes(x.status))return;
+          if(ev.kind==="tracker"){x.status="done";x.closedBy="tracker"}   // the owner's own action in their tracker counts as their decision
+          else {x.proposal=true}                                          // anything else is only a proposal
+        }); }
+      break;
+    case "agent-yes": i.status="done"; i.closedBy="agent-confirmed"; i.proposal=false; break;
+    case "agent-no": i.proposal=false; i.proposalDismissed=true; break;
+  }
+  return st;
+}
+const dispatch=a=>{S=reducer(S,a);render()};
+
+/* Reminder plan: priority decides channel and timing; a hard budget of 2 proactive alerts per person per week. */
+const BUDGET=2;
+function reminderPlan(){
+  const mine=S.items.filter(i=>i.owner==="Raj"&&["claimed","still"].includes(i.status));
+  const rank={high:0,medium:1,low:2};
+  const sorted=[...mine].sort((a,b)=>rank[a.priority]-rank[b.priority]);
+  let used=0;
+  return sorted.map(i=>{
+    let plan;
+    if(i.priority==="high") plan={when:"24 h before due ("+i.due.replace(/^\w+, /,"")+", 10:00 AM)",ch:"Push + browser"};
+    else if(i.priority==="medium") plan={when:"In the Open Loops check, 30 min before Product Sync",ch:"Browser"};
+    else plan={when:"No alert. Listed in the Open Loops check only",ch:"None"};
+    if(plan.ch!=="None"){ if(used<BUDGET){used++;plan.sched=true} else {plan.sched=false;plan.when="Over the 2-a-week budget: folded into the Open Loops check";plan.ch="None"} }
+    return {i,...plan};
+  });
+}
+function fireReminder(i){
+  const title=(i.priority==="high"?"Due soon: ":"Before Product Sync: ")+i.text;
+  const body="For "+i.to+" · due "+i.due+". Tap to mark Done, Still on it, Hand off or Drop.";
+  let real=false;
+  if(S.notify.web&&"Notification" in window&&Notification.permission==="granted"){try{new Notification(title,{body,tag:i.id});real=true}catch(e){}}
+  const w=$("#webn"); w.innerHTML=`<div class="src">${real?"Browser notification sent":"Preview"} · Fireflies</div><b>${esc(title)}</b><div style="margin-top:2px">${esc(body)}</div>`; w.hidden=false;
+  clearTimeout(fireReminder.t); fireReminder.t=setTimeout(()=>w.hidden=true,4200);
+}
+
+function go(name){if(name==="loops"&&!S.agentRan)S=reducer(S,{type:"agent-run"});S.screen=name;try{if(location.hash!=="#"+name)history.replaceState(null,"","#"+name)}catch(err){/* sandboxed previews block URL changes; navigation still works */}render()}
+function render(){
+  document.querySelectorAll(".nav").forEach(b=>b.classList.toggle("on",b.dataset.go===S.screen));
+  const idx=SCREENS.findIndex(x=>x[0]===S.screen);
+  $("#steps").innerHTML=SCREENS.map(([k,l],n)=>`<button class="${k===S.screen?"on":(idx>n?"done":"")}" data-go="${k}" title="${n+1}. ${l}" aria-label="Step ${n+1}: ${l}">${n+1}</button>`).join("");
+  $("#hint").innerHTML=idx>=0?`<b>Step ${idx+1} of ${SCREENS.length} · ${SCREENS[idx][1]}.</b> ${SCREENS[idx][2]}`:`Start the guided demo with <b>Next step</b>, or read the <b>User guide</b> first.`;
+  $("#prev").disabled=idx<=0; $("#next").textContent=idx===SCREENS.length-1?"Finish":idx<0?"Start demo":"Next step";
+  $("#ptitle").textContent=idx>=0?SCREENS[idx][1]:(TITLES[S.screen]||"");
+  $("#main").innerHTML=`<div class="view">${V[S.screen]()}</div>`;
+  window.scrollTo(0,0);
+}
+
+const V={};
+V.home=()=>{
+  const mine=S.items.filter(i=>i.owner==="Raj"&&["claimed","still"].includes(i.status)).length;
+  const pend=S.items.filter(i=>i.owner==="Raj"&&i.status==="pending").length;
+  const owed=S.items.filter(i=>i.to==="Raj"&&!resolved(i.status)).length;
+  return `<div class="hero"><div><h1>Welcome back, Raj</h1>
+     <p>New: the Commitment Loop. Promises made in meetings now get an owner who said yes, a private check before the next meeting, and an honest outcome: done, handed off or dropped.</p>
+     <div class="btns" style="margin-top:16px"><button class="btn pri" id="start">Start the guided demo</button><button class="btn" data-go="guide">Read the user guide</button></div></div>
+     <div class="card" style="background:rgba(0,0,0,.25);border-color:#4a3020;min-width:240px">
+       <div class="meta">14-day honest resolution</div><div style="font-size:30px;font-weight:700">28% → 45%</div><div class="meta">today → 6-month target</div></div></div>
+   <h2>Quick start</h2>
+   <div class="qs"><button class="q1" data-go="recap">Open last meeting<span>›</span></button><button class="q2" data-go="slack">Claim your commitments${pend?` (${pend})`:""}<span>›</span></button><button class="q3" data-go="loops">Run your Open Loops check<span>›</span></button></div>
+   <div class="grid3">
+    <div class="card feat"><div class="ic" style="background:#4a2234">1</div><h3>Before you leave</h3><p class="meta">In the last 3 minutes the host can show a read-back: owner and date for every item, one question for anything missing.</p></div>
+    <div class="card feat"><div class="ic" style="background:#2e2650">2</div><h3>While you work</h3><p class="meta">A private Claim Card in Slack. Yes, mine (with a date), Not mine, or Not a commitment. Claimed items go to your Asana.</p></div>
+    <div class="card feat"><div class="ic" style="background:#1e4532">3</div><h3>Before you meet again</h3><p class="meta">30 minutes before the next meeting: Done, Still on it, Hand off or Drop. The follow-up agent pre-closes what your tracker proves.</p></div>
+   </div>
+   <div class="card" style="margin-top:16px"><h2>Your commitments</h2>
+    <div class="kpis" style="margin:0"><div class="kpi"><div class="l">Waiting for your yes</div><div class="n">${pend}</div></div>
+     <div class="kpi"><div class="l">Open and owned</div><div class="n">${mine}</div></div>
+     <div class="kpi"><div class="l">Owed to you</div><div class="n">${owed}</div></div>
+     <div class="kpi"><div class="l">Next check</div><div class="n" style="font-size:18px;padding-top:8px">Tue 2:30 PM</div></div></div></div>`;
+};
+V.guide=()=>`<h1>User guide</h1><p class="sub">What this prototype shows, how to click through it in about 3 minutes, and what every button means.</p>
+  <div class="grid2">
+   <div class="card"><h2>Walkthrough</h2>
+    <ol class="steps-list">
+     <li><div class="t"><b>Meeting recap</b><div class="meta">See 5 extracted commitments. None has an owner yet; a vague line is held back as “Did you mean this?”.</div></div><button class="btn" data-go="recap">Open</button></li>
+     <li><div class="t"><b>Claim Card</b><div class="meta">Tap <b>Yes, mine</b> on two items, set one priority with the badge, and <b>Accept</b> Priya's request.</div></div><button class="btn" data-go="slack">Open</button></li>
+     <li><div class="t"><b>Tasks</b><div class="meta">Claimed items appear in the existing Tasks tab. Switch to <b>Owed to me</b>.</div></div><button class="btn" data-go="tasks">Open</button></li>
+     <li><div class="t"><b>Open Loops</b><div class="meta">One item is already closed by the follow-up agent from Asana. Tap <b>Yes, it's done</b> on the agent's proposal, then <b>Drop</b> another with a reason.</div></div><button class="btn" data-go="loops">Open</button></li>
+     <li><div class="t"><b>Meeting brief</b><div class="meta">“Closed since last time” lets the meeting skip repeats. Drop reasons never appear here.</div></div><button class="btn" data-go="brief">Open</button></li>
+     <li><div class="t"><b>Analytics</b><div class="meta">The manager's view: team totals and guardrails only, for groups of 5 or more.</div></div><button class="btn" data-go="analytics">Open</button></li>
+     <li><div class="t"><b>Reminders</b><div class="meta">Priority sets the channel; the plan never exceeds 2 alerts a week. Try <b>Preview</b>.</div></div><button class="btn" data-go="remind">Open</button></li>
+     <li><div class="t"><b>AI Skill: Router</b><div class="meta">Paste any transcript and see how each line is routed, with confidence and reasons.</div></div><button class="btn" data-go="lab">Open</button></li>
+    </ol>
+    <p class="note">Use <b>Reset</b> in the purple bar to start again.</p>
+   </div>
+   <div style="display:flex;flex-direction:column;gap:16px">
+    <div class="card"><h2>What the labels mean</h2>
+     <table><tbody>
+      <tr><td>${pill("pending")}</td><td>Fireflies heard a promise; nobody has said yes</td></tr>
+      <tr><td>${pill("claimed")}</td><td>The person confirmed it and set a date</td></tr>
+      <tr><td>${pill("done")} ${pill("handed")} ${pill("dropped")}</td><td>All three count as honestly resolved</td></tr>
+      <tr><td><span class="prio high">High</span> <span class="prio medium">Medium</span> <span class="prio low">Low</span></td><td>Private priority; only changes how you're reminded</td></tr>
+      <tr><td><span class="pill p-own">Agent</span></td><td>Follow-up agent: closes what your own tracker proves, proposes the rest</td></tr>
+     </tbody></table></div>
+    <div class="card"><h2>Rules the design keeps</h2>
+     <ul style="margin:0;padding-left:18px;color:var(--muted)">
+      <li>Nothing is assigned without the person's tap.</li>
+      <li>Drop is as easy as Done and counts as resolved.</li>
+      <li>Managers see team totals, never a per-person list.</li>
+      <li>At most 2 reminders a week; no AI phone calls.</li>
+      <li>The agent proposes; the person decides.</li></ul></div>
+    <div class="card"><h2>Real vs simulated</h2>
+     <p class="meta" style="margin:0">The flow, state, priority, agent rules, reminder plan and router logic all run in this page. Slack, Asana, mobile push and the analytics numbers are simulated with invented data.</p></div>
+   </div>
+  </div>`;
+const PH=(t,x)=>`<div class="card ph"><h2>${t}</h2><p>${x}</p><div class="btns" style="justify-content:center"><button class="btn pri" data-go="guide">Open the user guide</button></div></div>`;
+V.askfred=()=>PH("AskFred","Unchanged in this concept. Today “My action items” only appears when you ask; the Commitment Loop brings them to you instead, in the Claim Card and Open Loops.");
+V.voice=()=>PH("Voice Agents","Unchanged in this concept. Voice check-ins were considered for reminders and rejected as intrusive: a bot calling people about their promises feels like monitoring.");
+V.integrations=()=>PH("Integrations","Unchanged in this concept. Claimed items sync to Asana, Jira, Linear or personal lists, and their status flows back.");
+V.settings=()=>PH("Settings","Reminder settings for the concept live under Reminders in the left menu.");
+V.recap=()=>{
+  const list=S.items.filter(i=>i.id!=="c6");
+  return `<h1>Product Sync · Week 44</h1>
+  <p class="sub">Tue, Oct 27 · 42 min · Raj, Priya, Mansi, Arjun, Neha</p>
+  <div class="grid2">
+    <div class="card"><h2>Summary</h2>
+      <p>The team agreed to ship the new onboarding flow behind a flag next sprint. Priya flagged a Safari login regression from support tickets. Hiring for two backend roles moves to the leads' review.</p>
+      <h3 style="margin-top:16px">Key decisions</h3>
+      <ul style="margin:0;padding-left:18px;color:var(--muted)"><li>Onboarding v2 ships to 10% of new workspaces first</li><li>Pricing page copy stays as is this quarter</li></ul>
+    </div>
+    <div class="card"><h2>Commitments <span class="pill p-own" style="margin-left:6px">new</span></h2>
+      <div class="why">Each commitment goes only to the person who made it. Nothing is assigned until they accept.</div>
+      ${list.map(i=>`<div class="item"><div class="t"><div>${esc(i.text)}</div>
+        <div class="meta">${i.owner?esc(i.owner):"No owner"}${i.type==="request"?" · requested by "+esc(i.to):""} · <span class="ts">${i.ts}</span></div></div>${pill(i.status)}</div>`).join("")}
+      <div class="btns"><button class="btn pri" data-go="slack">See Raj's Claim Card</button></div>
+      <p class="note">One low-confidence line (“I might maybe look at the pricing copy”) is sent as “Did you mean this?” instead of a commitment.</p>
+    </div>
+  </div>`;
+};
+
+V.slack=()=>{
+  const mine=S.items.filter(i=>i.owner==="Raj"&&i.type==="self");
+  const req=get("c3");
+  const row=i=>{
+    if(i.status!=="pending") return `<div class="block"><div class="hdr"><b>${esc(i.text)}</b>${prio(i)}</div><div style="margin-top:6px">${pill(i.status)} ${i.status==="claimed"?`<span class="meta">due ${esc(i.due)} · added to Asana</span>`:""}</div></div>`;
+    const low=i.conf<.8;
+    return `<div class="block">${low?`<div class="meta" style="color:var(--warn)">Did you mean this as a commitment?</div>`:""}
+      <div class="hdr"><b>${esc(i.text)}</b>${prio(i)}</div><div class="quote">“${esc(i.quote)}” <span class="ts">${i.ts}</span></div>
+      <div class="btns" style="align-items:center">
+        <button class="btn pri" data-act="claim" data-id="${i.id}">Yes, mine</button>
+        <label class="meta">due <select id="due-${i.id}" aria-label="Due date">${["Mon, Nov 2","Wed, Nov 4","Fri, Nov 6","Tue, Nov 10"].map(d=>`<option ${d===i.due?"selected":""}>${d}</option>`).join("")}</select></label>
+        <button class="btn" data-act="notmine" data-id="${i.id}">Not mine</button>
+        <button class="btn" data-act="reject" data-id="${i.id}">Not a commitment</button>
+      </div></div>`;
+  };
+  return `<h1>Claim Card</h1><p class="sub">Delivered to Raj's Slack DM 14 minutes after the meeting. Nobody else sees it.</p>
+  <div class="slack"><div class="slack-top"># Direct message <span>· Fireflies app</span></div>
+   <div class="msg"><div class="bot" aria-hidden="true"></div><div class="body">
+    <b>Fireflies</b><span class="app-badge">APP</span> <span class="meta">2:56 PM</span>
+    <div style="margin-top:4px">From <b>Product Sync · Week 44</b>, it sounded like you committed to these. Are they yours?</div>
+    ${mine.map(row).join("")}
+    <div class="block"><div class="meta">Request from Priya</div><div class="hdr"><b>${esc(req.text)}</b>${prio(req)}</div>
+      <div class="quote">“${esc(req.quote.replace("Priya: ",""))}” <span class="ts">${req.ts}</span></div>
+      ${req.status==="pending"?`<div class="btns"><button class="btn pri" data-act="accept" data-id="c3">Accept · due Mon</button><button class="btn" data-act="decline" data-id="c3">Decline</button></div>`:`<div style="margin-top:6px">${pill(req.status)}</div>`}
+    </div>
+    <p class="note">Claimed items go to your Asana. Change destination · Mute this meeting series</p>
+   </div></div></div>
+   <div class="btns"><button class="btn" data-go="tasks">Next: see them in Tasks</button></div>`;
+};
+
+V.tasks=()=>{
+  const mine=S.items.filter(i=>i.owner==="Raj"&&["claimed","still","done","handed","dropped"].includes(i.status));
+  const owed=S.items.filter(i=>i.to==="Raj");
+  const list=S.tasksTab==="mine"?mine:owed;
+  return `<h1>Tasks</h1><p class="sub">Commitments sit inside the existing Tasks tab. No new inbox.</p>
+  <div class="tabs" role="tablist"><button class="${S.tasksTab==="mine"?"on":""}" data-tab="mine">My commitments</button><button class="${S.tasksTab==="owed"?"on":""}" data-tab="owed">Owed to me</button></div>
+  <div class="card">${list.length?list.map(i=>`<div class="item"><div class="t"><div class="hdr"><span>${esc(i.text)}</span>${S.tasksTab==="mine"?prio(i):""}</div>
+    <div class="meta">${S.tasksTab==="mine"?"for "+esc(i.to):"from "+esc(i.owner)} · due ${esc(i.due)} · Product Sync <span class="ts">${i.ts}</span> · synced to Asana</div></div>${pill(i.status)}</div>`).join(""):`<div class="empty">${S.tasksTab==="mine"?"Nothing claimed yet. Claim items from the Slack card first.":"Nothing owed to you."}</div>`}</div>
+  <p class="note">Priority is private to the owner: it never appears in the shared brief or in any manager view. There is no “All Tasks for my team” view of other people's commitments. You see what you own and what is owed to you.</p>
+  <div class="btns"><button class="btn" data-go="loops">Next: one week later</button></div>`;
+};
+
+V.loops=()=>{
+  const open=S.items.filter(i=>i.owner==="Raj"&&["claimed","still","done","handed","dropped"].includes(i.status));
+  const reasons=["Priorities changed","Blocked","No longer needed","Other"];
+  const row=i=>{
+    if(i.status!=="claimed"&&i.status!=="still") return `<div class="block"><div class="hdr"><b>${esc(i.text)}</b>${prio(i)}</div><div style="margin-top:6px">${pill(i.status)}${i.status==="handed"?` <span class="meta">to ${esc(S.handTo[i.id]||"")} (accepted)</span>`:""}${i.status==="dropped"&&S.dropReason[i.id]?` <span class="meta">${esc(S.dropReason[i.id])} · only ${esc(i.to)} sees the reason</span>`:""}${i.closedBy==="tracker"?` <span class="meta">Closed automatically: ${esc(EVIDENCE[i.id].text)} · ${esc(i.to)} notified</span>`:""}${i.closedBy==="agent-confirmed"?` <span class="meta">You confirmed the agent's proposal · ${esc(i.to)} notified</span>`:""}</div></div>`;
+    const ev=EVIDENCE[i.id];
+    const agent=i.proposal?`<div class="agent" role="group" aria-label="Follow-up agent proposal"><div class="lbl">Follow-up agent noticed</div>
+      <div>${esc(ev.text)} <span class="ts">${ev.ts||""}</span></div>
+      <div class="btns"><button class="btn good" data-act="agent-yes" data-id="${i.id}">Yes, it's done</button><button class="btn" data-act="agent-no" data-id="${i.id}">Not yet</button></div>
+      <div class="meta" style="margin-top:6px">The agent only proposes. Nothing closes until you confirm.</div></div>`:"";
+    return `<div class="block"><div class="hdr"><b>${esc(i.text)}</b>${prio(i)}</div><div class="meta">for ${esc(i.to)} · due ${esc(i.due)}</div>${agent}
+      <div class="btns"><button class="btn good" data-act="done" data-id="${i.id}">Done</button>
+      <button class="btn" data-act="still" data-id="${i.id}">Still on it</button>
+      <label class="meta">Hand off to <select id="hand-${i.id}" aria-label="Hand off to">${PEOPLE.map(p=>`<option>${p}</option>`).join("")}</select></label>
+      <button class="btn" data-act="hand" data-id="${i.id}">Hand off</button></div>
+      <div class="chips" aria-label="Drop with optional reason">${reasons.map(r=>`<button class="chip" data-act="drop" data-reason="${r}" data-id="${i.id}">Drop · ${r}</button>`).join("")}</div></div>`;
+  };
+  open.sort((a,b)=>PRIOS.indexOf(a.priority)-PRIOS.indexOf(b.priority));
+  return `<h1>Open Loops</h1><p class="sub">Tue, Nov 3 · 2:30 PM, 30 minutes before Product Sync · Week 45. Private to Raj. High priority first.</p>
+  <div class="slack"><div class="slack-top"># Direct message <span>· Fireflies app</span></div>
+  <div class="msg"><div class="bot" aria-hidden="true"></div><div class="body"><b>Fireflies</b><span class="app-badge">APP</span>
+   <div style="margin-top:4px">You have <b>${open.filter(i=>i.status==="claimed"||i.status==="still").length}</b> open from last week's Product Sync. A quick update keeps the meeting short.</div>
+   ${open.length?open.map(row).join(""):`<div class="block empty">Claim items on the Claim Card first, then come back.</div>`}
+   <p class="note">Dropping counts as closing. Nobody is told you “failed”. The follow-up agent checks your own tracker and later recorded meetings for proof an item is done; it never chases you or tells your manager.</p>
+  </div></div></div>
+  <div class="btns"><button class="btn" data-go="brief">Next: the shared meeting brief</button></div>`;
+};
+
+V.brief=()=>{
+  const all=S.items.filter(i=>i.type!=="unowned"&&!["rejected","notmine","declined","pending"].includes(i.status));
+  const closed=all.filter(i=>resolved(i.status)), open=all.filter(i=>!resolved(i.status));
+  const label=i=>i.status==="dropped"?"closed · no longer planned":i.status==="handed"?"handed off to "+S.handTo[i.id]:"done";
+  return `<h1>Meeting brief</h1><p class="sub">Product Sync · Week 45 · today 3:00 PM · visible to attendees of this series</p>
+  <div class="grid2"><div class="card"><h2>Closed since last time (${closed.length})</h2>
+   ${closed.length?closed.map(i=>`<div class="item"><div class="t">${esc(i.text)}<div class="meta">${esc(i.owner)} · ${label(i)}</div></div>${pill(i.status)}</div>`).join(""):`<div class="empty">Nothing closed yet. Use Open Loops to close an item.</div>`}</div>
+   <div class="card"><h2>Still open (${open.length})</h2>
+   ${open.map(i=>`<div class="item"><div class="t">${esc(i.text)}<div class="meta">${esc(i.owner)} · due ${esc(i.due)}</div></div>${pill(i.status)}</div>`).join("")||`<div class="empty">All clear.</div>`}
+   <p class="note">Drop reasons are never shown here. Unclaimed items are not listed against anyone.</p></div></div>
+   <div class="btns"><button class="btn" data-go="analytics">Next: what managers and buyers see</button></div>`;
+};
+
+V.analytics=()=>{
+  const weeks=["W1","W2","W3","W4","W5","W6","W7","W8"], pilot=[28,31,34,36,38,39,41,42], hold=[28,28,29,27,28,29,28,28];
+  const X=i=>48+i*80, Y=v=>190-(v-20)*5;
+  const path=a=>a.map((v,i)=>(i?"L":"M")+X(i)+" "+Y(v)).join(" ");
+  const grid=[20,30,40,50].map(v=>`<line x1="40" x2="620" y1="${Y(v)}" y2="${Y(v)}" stroke="#2e2e36"/><text x="32" y="${Y(v)+4}" text-anchor="end" fill="#9a9aa8" font-size="11">${v}%</text>`).join("");
+  return `<h1>Follow-through</h1><p class="sub">Analytics · Product &amp; Engineering (38 people) · pilot cohort vs holdout. Illustrative data.</p>
+  <div class="kpis">
+   <div class="card kpi"><div class="l">14-day honest resolution</div><div class="n">42%</div><div class="d">+14 pts vs 28% baseline</div></div>
+   <div class="card kpi"><div class="l">Claimed within 24 h</div><div class="n">63%</div><div class="d">target 60%</div></div>
+   <div class="card kpi"><div class="l">Repeated commitments</div><div class="n">−31%</div><div class="d">vs first 2 weeks</div></div>
+   <div class="card kpi"><div class="l">Est. hours saved / quarter</div><div class="n">146</div><div class="l">repeats avoided × 6 min × attendees</div></div>
+  </div>
+  <div class="grid2"><div class="card"><h2>Resolution rate climbs in the pilot, holdout stays flat</h2>
+   <div class="tw"><svg viewBox="0 0 640 220" width="100%" role="img" aria-label="Resolution rate by week, pilot vs holdout">${grid}
+    <path d="${path(hold)}" fill="none" stroke="#6b6b78" stroke-width="2"/>
+    <path d="${path(pilot)}" fill="none" stroke="#7b5cff" stroke-width="2.5"/>
+    <line x1="40" x2="620" y1="${Y(45)}" y2="${Y(45)}" stroke="#3fbf7f" stroke-dasharray="4 4"/><text x="620" y="${Y(45)-6}" text-anchor="end" fill="#3fbf7f" font-size="11">45% target</text>
+    <circle cx="${X(7)}" cy="${Y(42)}" r="4" fill="#7b5cff"/><text x="${X(7)-8}" y="${Y(42)-10}" text-anchor="end" fill="#ececf1" font-size="12">42%</text>
+    ${weeks.map((w,i)=>`<text x="${X(i)}" y="212" text-anchor="middle" fill="#9a9aa8" font-size="11">${w}</text>`).join("")}
+   </svg></div>
+   <div class="legend"><span><i style="background:#7b5cff"></i>Pilot teams</span><span><i style="background:#6b6b78"></i>Holdout</span></div></div>
+   <div class="card"><h2>How items closed</h2>
+    <div style="display:flex;height:14px;border-radius:7px;overflow:hidden;margin:6px 0 8px"><span style="width:79%;background:#3fbf7f"></span><span style="width:9%;background:#7b5cff"></span><span style="width:12%;background:#6b6b78"></span></div>
+    <div class="legend"><span><i style="background:#3fbf7f"></i>Done 79%</span><span><i style="background:#7b5cff"></i>Handed off 9%</span><span><i style="background:#6b6b78"></i>Dropped 12%</span></div>
+    <p class="note">Drops + hand-offs at 21% sit inside the 10–25% honesty band.</p>
+    <h3 style="margin-top:16px">Guardrails</h3>
+    <table><tbody>
+     <tr><td>Reminders per person per week</td><td class="mono">1.6</td><td><span class="pill p-done">≤ 2</span></td></tr>
+     <tr><td>“Not a commitment” rate</td><td class="mono">11%</td><td><span class="pill p-done">≤ 15%</span></td></tr>
+     <tr><td>“Not mine” rate</td><td class="mono">6%</td><td><span class="pill p-done">≤ 10%</span></td></tr>
+     <tr><td>Closed then repeated</td><td class="mono">3%</td><td><span class="pill p-done">≤ 5%</span></td></tr>
+     <tr><td>“Feels monitored” (pulse)</td><td class="mono">7%</td><td><span class="pill p-done">≤ 10%</span></td></tr>
+    </tbody></table></div></div>
+  <div class="why" style="margin-top:16px">Privacy by design: this view only exists for groups of 5 or more. There is no per-person table, ranking, or export of who dropped what.</div>`;
+};
+
+V.remind=()=>{
+  const plan=reminderPlan(), perm=("Notification" in window)?Notification.permission:"unsupported";
+  const sched=plan.filter(p=>p.sched);
+  const permTxt={granted:"Allowed in this browser",denied:"Blocked in this browser: previews show in the page instead",default:"Not asked yet",unsupported:"Not supported here: previews show in the page"}[perm];
+  return `<h1>Reminders</h1><p class="sub">Priority decides how you're reminded. Never more than ${BUDGET} proactive alerts a week; everything else waits for the Open Loops check.</p>
+  <div class="grid2">
+   <div class="card"><h2>Channels</h2>
+    <div class="item"><div class="t"><div>Browser notifications</div><div class="meta">${permTxt}</div></div>
+      <button class="sw" role="switch" aria-checked="${S.notify.web}" aria-label="Browser notifications" data-act="notify" data-channel="web"></button></div>
+    <div class="item"><div class="t"><div>Mobile push (Fireflies app)</div><div class="meta">Simulated in this prototype. Quiet hours 8 PM – 8 AM.</div></div>
+      <button class="sw" role="switch" aria-checked="${S.notify.push}" aria-label="Mobile push" data-act="notify" data-channel="push"></button></div>
+    <div class="item"><div class="t"><div>AI voice call reminder</div><div class="meta">Not offered. A voice-agent check-in scored 15 in RICE and was rejected as intrusive: a bot calling people about their promises is the monitoring feeling this design avoids.</div></div>
+      <button class="sw" role="switch" aria-checked="false" aria-label="AI voice call reminder (not offered)" disabled></button></div>
+    <h3 style="margin-top:16px">Rules by priority</h3>
+    <div class="tw"><table><thead><tr><th>Priority</th><th>Channel</th><th>When</th></tr></thead><tbody>
+     <tr><td><span class="prio high">High</span></td><td>Push + browser</td><td>24 h before the due date, and in the Open Loops check</td></tr>
+     <tr><td><span class="prio medium">Medium</span></td><td>Browser</td><td>In the Open Loops check, 30 min before the next meeting</td></tr>
+     <tr><td><span class="prio low">Low</span></td><td>None</td><td>Listed in the Open Loops check only</td></tr>
+    </tbody></table></div>
+    <p class="note">Every alert counts toward the guardrail of ${BUDGET} per person per week. Reminders never go to managers, and nobody is nudged before the owner's own date.</p>
+   </div>
+   <div class="card"><h2>Your reminder plan this week</h2>
+    ${plan.length?plan.map(p=>`<div class="item"><div class="t"><div class="hdr"><span>${esc(p.i.text)}</span>${prio(p.i)}</div>
+      <div class="meta">${esc(p.ch)} · ${esc(p.when)}</div></div>
+      ${p.sched?`<button class="btn" data-act="test" data-id="${p.i.id}">Preview</button>`:""}</div>`).join(""):`<div class="empty">No open commitments. Claim items on the Claim Card first.</div>`}
+    <p class="note">${sched.length} of ${BUDGET} weekly alerts used. Change a priority above to see the plan update.</p>
+    ${S.notify.push&&sched.some(p=>p.ch.startsWith("Push"))?`<h3 style="margin-top:14px">Lock-screen preview</h3>
+    <div class="phone" aria-label="Phone lock screen preview"><div class="clock">10:00</div><div class="date">The day before each due date</div>
+     ${sched.filter(p=>p.ch.startsWith("Push")).map(p=>`<div class="push"><div class="papp"><i></i>FIREFLIES · now</div><b>Due tomorrow: ${esc(p.i.text)}</b><div style="color:#c4c4d0">For ${esc(p.i.to)}, due ${esc(p.i.due)}. Done, Still on it, Hand off or Drop.</div></div>`).join("")}
+    </div>`:""}
+   </div>
+  </div>`;
+};
+
+const SAMPLE=`Raj: I'll send the revised onboarding deck to Priya by Friday.
+Priya: Raj, can you look into the Safari login bug before Monday?
+Raj: Sure, on it.
+Mansi: Someone should update the pricing FAQ.
+Arjun: I already shipped the webhook fix yesterday.
+Neha: I might maybe look at the analytics export if I get time.
+Arjun: I will draft the rate-limit proposal by Thursday.
+Mansi: We should probably revisit the roadmap next quarter.`;
+let labText=SAMPLE,labOut=null;
+function route(text){
+  const lines=text.split("\n").map(l=>l.trim()).filter(Boolean).map(l=>{const m=l.match(/^([A-Za-z]+):\s*(.*)$/);return m?{sp:m[1],t:m[2]}:{sp:"?",t:l}});
+  const verbs=/\b(send|share|review|draft|fix|look into|schedule|update|follow up|write|prepare|ship|check|call|email|book)\b/i;
+  const days=/\b(today|tomorrow|monday|tuesday|wednesday|thursday|friday|eod|eow|next week|by \w+day)\b/i;
+  const hedge=/\b(maybe|might|probably|try|if i get time|at some point)\b/i;
+  return lines.map((L,idx)=>{
+    let type="none",conf=0,owner=null,why=[];
+    const t=L.t;
+    if(/\b(i already|i did|i would|i shipped|yesterday)\b/i.test(t)){why.push("past or hypothetical")}
+    else if(/\b(i'll|i will|i can|let me|i'm going to)\b/i.test(t)){type="self";conf=.7;owner=L.sp;why.push("first-person promise")}
+    else if(/^[A-Z][a-z]+,\s*(can|could|would) you/.test(t)||/\b(can|could) you\b/i.test(t)){type="request";conf=.6;owner=null;why.push("request to named person")}
+    else if(/\b(someone should|we should|we need to)\b/i.test(t)){type="unowned";conf=.45;why.push("no owner")}
+    if(type!=="none"){
+      if(verbs.test(t)){conf+=.1;why.push("action verb")}
+      const d=t.match(days); if(d){conf+=.1;why.push("due: "+d[0])}
+      if(hedge.test(t)){conf-=.25;why.push("hedged")}
+      if(type==="request"){const nx=lines[idx+1];const name=(t.match(/^([A-Z][a-z]+),/)||[])[1];if(nx&&name&&nx.sp===name&&/\b(sure|yes|on it|will do|ok)\b/i.test(nx.t)){type="self";owner=name;conf+=.15;why.push("accepted by "+name)}}
+    }
+    conf=Math.max(0,Math.min(.99,conf));
+    let r="Gate out (logged)";
+    if(type==="self")r=conf>=.8?"Claim Card → "+owner:conf>=.5?"“Did you mean this?” → "+owner:"Gate out (logged)";
+    if(type==="request")r="Request card → named person (needs Accept)";
+    if(type==="unowned")r=conf>=.4?"Host's Unowned list":"Gate out (logged)";
+    if(type==="none"&&!why.length)why.push("no commitment language");
+    const due=(t.match(days)||["—"])[0];
+    return {sp:L.sp,t,type,conf,owner:owner||"—",due,r,why:why.join(", ")};
+  });
+}
+V.lab=()=>{
+  return `<h1>AI Skill · Commitment Router</h1><p class="sub">The rules from Step 8, running live. Edit the transcript (format “Name: line”) and route it.</p>
+  <div class="card"><label for="lab-in" class="meta">Transcript</label><textarea id="lab-in">${esc(labText)}</textarea>
+   <div class="btns"><button class="btn pri" id="run">Route commitments</button><button class="btn" id="sample">Load sample</button></div></div>
+  ${labOut?`<div class="card tw" style="margin-top:16px"><table><thead><tr><th>Speaker</th><th>Line</th><th>Type</th><th>Owner</th><th>Due</th><th>Confidence</th><th>Routed to</th><th>Why</th></tr></thead><tbody>
+   ${labOut.map(o=>`<tr><td>${esc(o.sp)}</td><td>${esc(o.t)}</td><td class="mono">${o.type}</td><td>${esc(o.owner)}</td><td>${esc(o.due)}</td><td class="mono"><span class="bar"><i style="width:${Math.round(o.conf*100)}%"></i></span>${o.conf.toFixed(2)}</td><td>${esc(o.r)}</td><td class="meta">${esc(o.why)}</td></tr>`).join("")}
+  </tbody></table></div>`:""}`;
+};
+
+document.addEventListener("click",e=>{
+  const g=e.target.closest("[data-go]"); if(g){go(g.dataset.go);return}
+  const tb=e.target.closest("[data-tab]"); if(tb){S.tasksTab=tb.dataset.tab;render();return}
+  if(e.target.id==="reset"){S=INIT();labOut=null;labText=SAMPLE;go("home");toast("Demo reset");return}
+  if(e.target.id==="start"){go(SCREENS[0][0]);return}
+  if(e.target.id==="next"||e.target.id==="prev"){const n=SCREENS.findIndex(x=>x[0]===S.screen);
+    if(e.target.id==="next"){ if(n<0)go(SCREENS[0][0]); else if(n===SCREENS.length-1){go("home");toast("Demo complete. Use Reset to run it again")} else go(SCREENS[n+1][0]); }
+    else if(n>0) go(SCREENS[n-1][0]); return}
+  if(e.target.id==="run"){labText=$("#lab-in").value;labOut=route(labText);render();return}
+  if(e.target.id==="sample"){labText=SAMPLE;labOut=route(SAMPLE);render();return}
+  const a=e.target.closest("[data-act]");
+  if(!a){ if(S.prioMenu&&!e.target.closest(".prio-wrap")) dispatch({type:"prio-close"}); return; }
+  const id=a.dataset.id, act=a.dataset.act, i=id?get(id):null;
+  if(act==="claim"){const s=$("#due-"+id);dispatch({type:"claim",id,due:s?s.value:null});toast("Owned · added to Asana, due "+i.due+" · priority "+PLABEL[i.priority]);return}
+  if(act==="notmine"){dispatch({type:"notmine",id});toast("Thanks. We'll ask who it belongs to, not assign it");return}
+  if(act==="reject"){dispatch({type:"reject",id});toast("Removed. This helps Fireflies learn");return}
+  if(act==="accept"){dispatch({type:"accept",id});toast("Accepted · Priya will hear when it's done");return}
+  if(act==="decline"){dispatch({type:"decline",id});toast("Declined · Priya has been told");return}
+  if(act==="done"){dispatch({type:"done",id});toast("Closed as done · "+i.to+" notified");return}
+  if(act==="still"){dispatch({type:"still",id});toast("Kept open · no one is nudged");return}
+  if(act==="hand"){dispatch({type:"hand",id,to:$("#hand-"+id).value});toast("Handed off to "+S.handTo[id]+" (they accepted)");return}
+  if(act==="drop"){dispatch({type:"drop",id,reason:a.dataset.reason});toast("Closed · dropped. That counts as resolved");return}
+  if(act==="prio-menu"){dispatch({type:"prio-menu",id});const m=document.querySelector(".prio-menu [aria-checked=true]");if(m)m.focus();return}
+  if(act==="prio-set"){dispatch({type:"prio-set",id,priority:a.dataset.prio});toast("Priority set to "+PLABEL[a.dataset.prio]+" · only you see it");return}
+  if(act==="prio-cycle"){dispatch({type:"prio-cycle",id});toast("Priority: "+PLABEL[get(id).priority]);return}
+  if(act==="notify"){const ch=a.dataset.channel,v=!S.notify[ch];
+    if(ch==="web"&&v&&"Notification" in window&&Notification.permission==="default"){try{Notification.requestPermission().then(()=>render())}catch(err){}}
+    dispatch({type:"notify-toggle",channel:ch,value:v});toast((ch==="web"?"Browser notifications ":"Mobile push ")+(v?"on":"off"));return}
+  if(act==="test"){fireReminder(i);return}
+  if(act==="agent-yes"){dispatch({type:"agent-yes",id});toast("Closed as done · "+i.to+" notified");return}
+  if(act==="agent-no"){dispatch({type:"agent-no",id});toast("Kept open · the agent won't ask about this again");return}
+});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&S.prioMenu){const id=S.prioMenu;dispatch({type:"prio-close"});const b=document.querySelector(`[data-act="prio-menu"][data-id="${id}"]`);if(b)b.focus()}});
+window.addEventListener("hashchange",()=>{const h=location.hash.slice(1);if(V[h]&&h!==S.screen){S.screen=h;render()}});
+const h0=location.hash.slice(1); if(V[h0])S.screen=h0;
+render();
+</script>
